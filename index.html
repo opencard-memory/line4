@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4호선 LCD 안내방송 제어</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <h1>🚇 4호선 LCD 프로젝트</h1>
+      <div class="tools">
+        <span id="linkBadge" class="badge">표시화면 미연결</span>
+        <button class="ghost" id="btnOpen">표시화면 새 창</button>
+        <button class="ghost" id="btnFull">전체화면 (F)</button>
+      </div>
+    </header>
+
+    <div id="screen" class="screen" aria-label="표시화면 미리보기">
+      <img class="screen-img" alt="" src="">
+      <div class="screen-dest"></div>
+    </div>
+
+    <section class="panel">
+      <div class="panel-grid">
+        <p class="status">이번 방송역: <b id="current"></b></p>
+        <div class="dest" id="dest"></div>
+        <button class="royal" id="btnDir">행선지변경</button>
+
+        <button class="red" id="btnPrev">◀ 이전역</button>
+        <button class="big span2" id="btnAnnounce">시 작</button>
+        <button class="red" id="btnNext">다음역 ▶</button>
+
+        <button id="btnDoor">출입문</button>
+        <button id="btnStandby">대기</button>
+        <button class="royal span2" id="btnDeparture">출발화면/방송</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <p class="hint">
+        • <b>출발화면/방송</b>: 한 번 누르면 출발화면, 두 번째는 방송, 세 번째는 원래대로. 출발화면 상태에서는 다른 버튼이 잠깁니다.<br>
+        • <b>대기</b>: 누르면 노선도(대기) 화면, 한 번 더 누르면 원래대로. 대기 화면에서 역을 바꾸지 마세요.<br>
+        • <b>표시화면 새 창</b>을 열어 다른 모니터로 옮긴 뒤 <kbd>F</kbd>로 전체화면을 쓰세요. 행선지 글씨 위치는 <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>로 조절합니다.<br>
+        • 화면 이미지는 5초마다 다음 장으로 넘어갑니다.
+      </p>
+    </section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
