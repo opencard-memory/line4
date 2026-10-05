@@ -12,7 +12,7 @@
       <h1>🚇 4호선 LCD 프로젝트</h1>
       <div class="tools">
         <span id="linkBadge" class="badge">표시화면 미연결</span>
-        <button class="ghost" id="btnOpen">표시화면 새 창</button>
+        <button class="ghost" id="btnLink">표시화면 연결</button>
         <button class="ghost" id="btnFull">전체화면 (F)</button>
       </div>
     </header>
@@ -42,11 +42,28 @@
       <p class="hint">
         • <b>출발화면/방송</b>: 한 번 누르면 출발화면, 두 번째는 방송, 세 번째는 원래대로. 출발화면 상태에서는 다른 버튼이 잠깁니다.<br>
         • <b>대기</b>: 누르면 노선도(대기) 화면, 한 번 더 누르면 원래대로. 대기 화면에서 역을 바꾸지 마세요.<br>
-        • <b>표시화면 새 창</b>을 열어 다른 모니터로 옮긴 뒤 <kbd>F</kbd>로 전체화면을 쓰세요. 행선지 글씨 위치는 <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>로 조절합니다.<br>
+        • <b>표시화면 연결</b>: 승객용 기기(또는 다른 창)에서 <code>display.html</code>을 열면 6자리 코드가 나옵니다. 그 코드를 여기서 입력하면 연결됩니다. 표시화면에서 <kbd>F</kbd>로 전체화면을 쓰세요. 행선지 글씨 위치는 <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>로 조절합니다.<br>
         • 화면 이미지는 5초마다 다음 장으로 넘어갑니다.
       </p>
     </section>
   </main>
+
+  <dialog id="linkDialog" class="dialog">
+    <form method="dialog" id="linkForm">
+      <h2>표시화면 연결</h2>
+      <p class="hint">표시화면(<code>display.html</code>)에 나온 6자리 코드를 입력하세요.</p>
+      <input id="codeInput" class="code-input" inputmode="numeric" autocomplete="off"
+             maxlength="6" placeholder="000000" aria-label="6자리 코드">
+      <p id="linkMsg" class="link-msg" role="status"></p>
+      <ul id="linkList" class="link-list"></ul>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" id="btnLinkClose">닫기</button>
+        <button type="submit" id="btnLinkGo">연결</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -7,11 +7,18 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="display-page">
-  <div id="wait" class="wait">조작 화면(index.html)에서<br>“표시화면 새 창” 버튼으로 열어주세요.<br>연결 대기 중…</div>
+  <div id="wait" class="wait">
+    <div>
+      <div id="waitMsg" class="wait-msg">서버에 연결 중…</div>
+      <div id="code" class="code">------</div>
+      <div class="wait-sub">조작 화면의 “표시화면 연결”에서 위 코드를 입력하세요.</div>
+    </div>
+  </div>
   <div id="screen" class="screen">
     <img class="screen-img" alt="" src="">
     <div class="screen-dest"></div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script type="module" src="js/display.js"></script>
 </body>
 </html>
