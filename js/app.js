@@ -1,12 +1,11 @@
 import {
-  activeStations, allImages, CHANNEL_NAME, IMAGE_DELAY, initialState, OFFSET_STEP, renderScreen,
+  activeStations, allImages, CODE_LENGTH, IMAGE_DELAY, initialState, OFFSET_STEP, renderScreen, topicC2D, topicD2C,
 } from "./common.js";
+import { connectBroker } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
 const state = initialState();
-const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 
-let displayWin = null;
 let loopTimer = null;
 let audio = null; // 현재 재생 중인 Audio
 let isPlayingAnnounce = false;
@@ -14,7 +13,7 @@ let isPlayingAnnounce = false;
 // ---------- 화면 갱신 ----------
 function sync() {
   renderScreen($("screen"), state);
-  channel?.postMessage({ type: "state", state });
+  broadcast();
 
   const st = activeStations(state.direction)[state.stationIdx];
   $("dest").textContent = state.direction;
@@ -130,11 +129,143 @@ $("btnAnnounce").onclick = () => {
   sync();
 };
 
-// ---------- 표시화면 창 / 전체화면 / 위치조절 ----------
-$("btnOpen").onclick = () => {
-  displayWin = window.open("display.html", "line4-display", "width=1280,height=720");
-  if (!displayWin) alert("팝업이 차단되었습니다. 팝업 허용 후 다시 눌러주세요.");
-};
+// ---------- 표시화면 연결 (6자리 코드) ----------
+const ALIVE_MS = 12000; // 이 시간 동안 표시화면 신호가 없으면 "끊김"
+const links = new Map(); // code -> { lastSeen, onAck }
+let client = null;
+let clientPromise = null;
+
+const isAlive = (l) => Date.now() - l.lastSeen < ALIVE_MS;
+const pub = (topic, msg) => { if (client && client.connected) client.publish(topic, JSON.stringify(msg)); };
+const sendState = (code) => pub(topicC2D(code), { type: "state", state });
+
+function broadcast() {
+  for (const code of links.keys()) sendState(code);
+}
+
+function onMessage(topic, payload) {
+  const code = topic.split("/")[2];
+  const link = links.get(code);
+  if (!link) return;
+  let m;
+  try { m = JSON.parse(payload.toString()); } catch { return; }
+  const wasAlive = isAlive(link);
+  link.lastSeen = Date.now();
+  if (link.onAck) { link.onAck(); link.onAck = null; }
+  if (m.type === "ready" || !wasAlive) sendState(code); // 표시화면이 (재)시작되면 바로 현재 상태 전송
+  if (m.type === "move") moveText(m.dx, m.dy);
+  renderLinks();
+}
+
+function getClient() {
+  if (!clientPromise) {
+    clientPromise = connectBroker()
+      .then((c) => { client = c; c.on("message", onMessage); return c; })
+      .catch((e) => { clientPromise = null; throw e; });
+  }
+  return clientPromise;
+}
+
+async function connectDisplay(code) {
+  if (links.has(code)) throw new Error("이미 연결된 코드입니다.");
+  const c = await getClient();
+  await new Promise((res, rej) => c.subscribe(topicD2C(code), (err) => (err ? rej(err) : res())));
+  const link = { lastSeen: 0, onAck: null };
+  links.set(code, link);
+  try {
+    await new Promise((resolve, reject) => {
+      const timers = [];
+      const cleanup = () => timers.forEach(clearTimeout);
+      link.onAck = () => { cleanup(); resolve(); };
+      timers.push(setTimeout(() => { link.onAck = null; reject(new Error("해당 코드의 표시화면을 찾을 수 없습니다.")); }, 7000));
+      const hello = () => pub(topicC2D(code), { type: "hello" });
+      hello();
+      timers.push(setTimeout(hello, 2500), setTimeout(hello, 5000)); // 신호가 유실될 수 있어 재전송
+    });
+  } catch (e) {
+    links.delete(code);
+    c.unsubscribe(topicD2C(code));
+    throw e;
+  }
+  sendState(code);
+  renderLinks();
+}
+
+function disconnectDisplay(code) {
+  links.delete(code);
+  client?.unsubscribe(topicD2C(code));
+  renderLinks();
+}
+
+// 주기적으로 상태 전송(표시화면 생존 확인용) + 연결 상태 표시 갱신
+setInterval(() => { broadcast(); renderLinks(); }, 3000);
+
+const dialog = $("linkDialog");
+const codeInput = $("codeInput");
+const linkMsg = $("linkMsg");
+
+function renderLinks() {
+  const alive = [...links.values()].filter(isAlive).length;
+  const badge = $("linkBadge");
+  badge.classList.toggle("on", alive > 0);
+  badge.textContent = alive > 0 ? `표시화면 ${alive}대 연결됨` : links.size > 0 ? "표시화면 신호 없음" : "표시화면 미연결";
+
+  const ul = $("linkList");
+  ul.replaceChildren();
+  for (const [code, link] of links) {
+    const li = document.createElement("li");
+    const span = document.createElement("span");
+    span.textContent = `${code.slice(0, 3)} ${code.slice(3)} · ${isAlive(link) ? "연결됨" : "끊김(재연결 대기)"}`;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ghost";
+    btn.textContent = "해제";
+    btn.onclick = () => disconnectDisplay(code);
+    li.append(span, btn);
+    ul.append(li);
+  }
+}
+
+function openLinkDialog() {
+  linkMsg.textContent = "";
+  linkMsg.classList.remove("err");
+  try { codeInput.value = localStorage.getItem("line4-last-code") || ""; } catch { codeInput.value = ""; }
+  renderLinks();
+  dialog.showModal();
+  codeInput.select();
+}
+
+$("btnLink").onclick = openLinkDialog;
+$("btnLinkClose").onclick = () => dialog.close();
+codeInput.addEventListener("input", () => {
+  codeInput.value = codeInput.value.replace(/\D/g, "").slice(0, CODE_LENGTH);
+});
+
+$("linkForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const code = codeInput.value.trim();
+  linkMsg.classList.remove("err");
+  if (code.length !== CODE_LENGTH) {
+    linkMsg.classList.add("err");
+    linkMsg.textContent = `${CODE_LENGTH}자리 숫자를 입력하세요.`;
+    return;
+  }
+  const go = $("btnLinkGo");
+  go.disabled = true;
+  linkMsg.textContent = "연결 중…";
+  try {
+    await connectDisplay(code);
+    try { localStorage.setItem("line4-last-code", code); } catch {}
+    linkMsg.textContent = "연결되었습니다.";
+    codeInput.value = "";
+    setTimeout(() => { if (dialog.open) dialog.close(); }, 600);
+  } catch (err) {
+    linkMsg.classList.add("err");
+    linkMsg.textContent = err.message;
+  } finally {
+    go.disabled = false;
+  }
+});
 
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();
@@ -149,6 +280,7 @@ function moveText(dx, dy) {
 }
 
 document.addEventListener("keydown", (e) => {
+  if (dialog.open || e.target.closest?.("input, textarea")) return; // 코드 입력 중에는 단축키 무시
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   switch (e.key) {
     case "f": case "F": toggleFullscreen(); break;
@@ -158,19 +290,6 @@ document.addEventListener("keydown", (e) => {
     case "ArrowRight": e.preventDefault(); moveText(1, 0); break;
   }
 });
-
-// 별도 표시화면 창과 통신
-channel && (channel.onmessage = (e) => {
-  const m = e.data;
-  if (m.type === "hello") {
-    channel.postMessage({ type: "state", state });
-    $("linkBadge").classList.add("on");
-    $("linkBadge").textContent = "표시화면 연결됨";
-  } else if (m.type === "move") {
-    moveText(m.dx, m.dy);
-  }
-});
-window.addEventListener("beforeunload", () => channel?.postMessage({ type: "bye" }));
 
 // ---------- 시작 ----------
 allImages().forEach((src) => { const i = new Image(); i.src = src; }); // 미리 불러오기

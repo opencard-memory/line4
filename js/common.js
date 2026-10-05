@@ -15,8 +15,24 @@ export const DIRECTIONS = {
 };
 
 export const IMAGE_DELAY = 5000; // 5초마다 다음 이미지
-export const CHANNEL_NAME = "line4-lcd";
+// 인터넷 어디서든 연결되도록 공개 MQTT(WebSocket) 중계 서버를 사용 (앞에서부터 시도)
+export const BROKERS = [
+  "wss://broker.hivemq.com:8884/mqtt",
+  "wss://broker.emqx.io:8084/mqtt",
+  "wss://test.mosquitto.org:8081/mqtt",
+];
+export const CODE_LENGTH = 6;
 export const OFFSET_STEP = 10; // 화살표 키 이동량 (1920x1080 기준 px)
+
+// 6자리 무작위 숫자 코드 (표시화면이 생성)
+export function newCode() {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return String(a[0] % 10 ** CODE_LENGTH).padStart(CODE_LENGTH, "0");
+}
+// 조작 -> 표시 / 표시 -> 조작 채널 (코드별로 분리)
+export const topicC2D = (code) => `line4lcd/v1/${code}/c2d`;
+export const topicD2C = (code) => `line4lcd/v1/${code}/d2c`;
 
 export function activeStations(direction) {
   const list = [...BASE_STATIONS];
