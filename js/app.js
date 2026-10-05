@@ -46,16 +46,33 @@ function restartLoop() {
 }
 
 // ---------- 오디오 ----------
-function stopAudio() {
+// 표시화면이 연결되어 있으면 소리는 표시화면에서만 재생하고, 이 화면에서는 재생하지 않는다.
+// 연결된 표시화면이 없을 때만 이 화면에서 재생한다.
+const aliveCodes = () => [...links].filter(([, l]) => isAlive(l)).map(([c]) => c);
+
+function stopLocalAudio() {
   if (audio) {
     audio.pause();
     audio.currentTime = 0;
   }
+}
+
+function stopAudio() {
+  stopLocalAudio();
+  for (const code of links.keys()) pub(topicC2D(code), { type: "audio", cmd: "stop" });
   isPlayingAnnounce = false;
 }
 
 function playAudio(src, isAnnounce = false) {
   stopAudio();
+  const remote = aliveCodes();
+  if (remote.length > 0) {
+    // 표시화면에서 재생
+    isPlayingAnnounce = isAnnounce;
+    for (const code of remote) pub(topicC2D(code), { type: "audio", cmd: "play", src, announce: isAnnounce });
+    return;
+  }
+  // 표시화면이 없으면 이 화면에서 재생
   audio = new Audio(src);
   audio.addEventListener("ended", () => {
     if (isAnnounce) { isPlayingAnnounce = false; sync(); }
@@ -152,8 +169,13 @@ function onMessage(topic, payload) {
   const wasAlive = isAlive(link);
   link.lastSeen = Date.now();
   if (link.onAck) { link.onAck(); link.onAck = null; }
+  if (!wasAlive) stopLocalAudio(); // 표시화면이 연결되면 이 화면의 소리는 끈다
   if (m.type === "ready" || !wasAlive) sendState(code); // 표시화면이 (재)시작되면 바로 현재 상태 전송
   if (m.type === "move") moveText(m.dx, m.dy);
+  if ((m.type === "audio-ended" || m.type === "audio-error") && isPlayingAnnounce) {
+    isPlayingAnnounce = false; // 표시화면에서 방송이 끝났거나 재생 실패
+    sync();
+  }
   renderLinks();
 }
 
